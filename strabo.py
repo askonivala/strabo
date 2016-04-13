@@ -11,13 +11,23 @@ import re
 import csv, codecs, cStringIO
 
 from geopy.geocoders import Nominatim
+from geopy.geocoders import GoogleV3
 from geopy.exc import GeocoderTimedOut
 from time import sleep
 
-geolocator = Nominatim()
-
-# from geopy.geocoders import GoogleV3
-# geolocator = GoogleV3()
+print
+print "Choose which Geocoder to use:"
+print "1. Nominatim (default)"
+print "2. Google"
+print
+choice = raw_input('Enter your choice: ')
+choice = int(choice)
+if choice == 1:
+	geolocator = Nominatim()        
+elif choice == 2:
+	geolocator = GoogleV3()
+else:
+	geolocator = Nominatim()
 
 # Pass the argument to filename
 filename = sys.argv[-1]
