@@ -9,6 +9,7 @@ sys.setdefaultencoding("utf-8")
 
 import re
 import csv, codecs, cStringIO
+import pprint
 
 from geopy.geocoders import Nominatim
 from geopy.geocoders import GoogleV3
@@ -122,29 +123,30 @@ output  = re.compile('<LOCATION>(.*?)</LOCATION>', re.DOTALL |  re.IGNORECASE).f
 for index, item in enumerate(output):
 #	print item,
 	name = item
-	address = item
+	address = item.decode('utf8')
 
 # Routine for geolocator
 	location = cache.address_cached(address)
 	if location:
-		print ('Was cached: '),
+		print "Was cached:",
 	else:
-		print('Was not cached, looking up and caching now... '),
-		location = geolocator.geocode(output[index], timeout=10)
-		cache.save_to_cache(address, location)
+		print "Was not cached, looking up...",
+		try:
+			location = geolocator.geocode(output[index], timeout=10)
+			cache.save_to_cache(address, location)
+		except:
+			print "Geocoding failed."
+			continue
 	try:
-		print(address, location.latitude, location.longitude)
+		print address, location.latitude, location.longitude
 		lat = str(location.latitude)
 		longi = str(location.longitude)
 		latlong = lat + ',' + longi
 		records.append({
 				'name': item,
 				'latlong': latlong
-	#			'lat': lat,
-	#			'long': longi,
 			})
 	except:
-		print "(Geocoding failed.)"
 		# TODO: Save these results in separate list to debug OCR-errors and historical places.
 		continue
 
@@ -155,5 +157,4 @@ with open('output.csv', 'w') as csvfile:
 	writer = UnicodeWriter(csvfile, quoting=csv.QUOTE_NONE)
 	writer.writerow(["City;Latlong"])
 	for record in records:
-#		writer.writerow([record['name'], record['lat'], record['long']])
 		writer.writerow([record['name'], record['latlong']])
