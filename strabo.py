@@ -17,8 +17,8 @@ from time import sleep
 
 print
 print "Choose which Geocoder to use:"
-print "1. Nominatim (default)"
-print "2. Google"
+print "1. Nominatim"
+print "2. Google (default)"
 print
 choice = raw_input('Enter your choice: ')
 choice = int(choice)
@@ -27,7 +27,7 @@ if choice == 1:
 elif choice == 2:
 	geolocator = GoogleV3()
 else:
-	geolocator = Nominatim()
+	geolocator = GoogleV3()
 
 # Pass the argument to filename
 filename = sys.argv[-1]
