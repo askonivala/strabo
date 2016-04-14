@@ -147,6 +147,7 @@ for index, item in enumerate(output):
 				'latlong': latlong
 			})
 	except:
+		print " "
 		# TODO: Save these results in separate list to debug OCR-errors and historical places.
 		continue
 
