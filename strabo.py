@@ -15,15 +15,49 @@ from geopy.geocoders import GoogleV3
 from geopy.exc import GeocoderTimedOut
 from time import sleep
 
+# Initializing database for cache
+print
+print ('Strabo Geolocator by Asko Nivala (aeniva@utu.fi)')
+print
+print ('Loading database for cache...')
+import geopy
+import pickle
+import sqlite3
+
+class Cache(object):
+    def __init__(self, fn='cache.db'):
+       self.conn = conn = sqlite3.connect(fn)
+       cur = conn.cursor()
+       cur.execute('CREATE TABLE IF NOT EXISTS '
+                   'Geo ( '
+                   'address STRING PRIMARY KEY, '
+                   'location BLOB '
+                   ')')
+       conn.commit()
+
+    def address_cached(self, address):
+        cur = self.conn.cursor()
+        cur.execute('SELECT location FROM Geo WHERE address=?', (address,))
+        res = cur.fetchone()
+        if res is None: return False
+        return pickle.loads(res[0])
+
+    def save_to_cache(self, address, location):
+        cur = self.conn.cursor()
+        cur.execute('INSERT INTO Geo(address, location) VALUES(?, ?)',
+                    (address, sqlite3.Binary(pickle.dumps(location, -1))))
+        self.conn.commit()
+print ('Loaded.')
+
 print
 print "Choose which Geocoder to use:"
 print "1. Nominatim"
 print "2. Google (default)"
 print
-choice = raw_input('Enter your choice: ')
+choice = raw_input('Enter your choice [1-2]: ')
 choice = int(choice)
 if choice == 1:
-	geolocator = Nominatim()        
+	geolocator = Nominatim()
 elif choice == 2:
 	geolocator = GoogleV3()
 else:
@@ -39,8 +73,7 @@ if filename == "./strabo.py":
 	print
 	sys.exit()
 
-# Start the program
-
+# Initializing CSV-writer for output.
 class excel_semicolon(csv.excel):
 	delimiter = ';'
 	escapechar = "%"
@@ -77,6 +110,7 @@ class UnicodeWriter:
             self.writerow(row)
 
 records = []
+cache = Cache('test.db')
 
 # Open file
 g = open(filename, "r")
@@ -86,14 +120,20 @@ g.close()
 # Find tags
 output  = re.compile('<LOCATION>(.*?)</LOCATION>', re.DOTALL |  re.IGNORECASE).findall(text)
 for index, item in enumerate(output):
-	print item,
+#	print item,
 	name = item
-	
+	address = item
+
 # Routine for geolocator
-# TODO: Build a cache where results are looked before geocoding: This saves both time and lets you add historical places.
-	location = geolocator.geocode(output[index], timeout=10)
+	location = cache.address_cached(address)
+	if location:
+		print ('Was cached: '),
+	else:
+		print('Was not cached, looking up and caching now... '),
+		location = geolocator.geocode(output[index], timeout=10)
+		cache.save_to_cache(address, location)
 	try:
-		print(location.latitude, location.longitude)
+		print(address, location.latitude, location.longitude)
 		lat = str(location.latitude)
 		longi = str(location.longitude)
 		latlong = lat + ',' + longi
@@ -107,7 +147,7 @@ for index, item in enumerate(output):
 		print "(Geocoding failed.)"
 		# TODO: Save these results in separate list to debug OCR-errors and historical places.
 		continue
-		
+
 	sleep(1)
 
 # Write the tags to CSV table
