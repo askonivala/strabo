@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Strabo Geolocator by Asko Nivala (aeniva@utu.fi)
-
 import sys
 reload(sys)
 sys.setdefaultencoding("utf-8")
@@ -15,6 +13,21 @@ from geopy.geocoders import Nominatim
 from geopy.geocoders import GoogleV3
 from geopy.exc import GeocoderTimedOut
 from time import sleep
+
+# Initialize nltk
+from nltk.tag import StanfordNERTagger
+from nltk.tokenize import word_tokenize
+
+st = StanfordNERTagger('/home/asko/stanford-ner-2015-12-09/classifiers/english.all.3class.distsim.crf.ser.gz', '/home/asko/stanford-ner-2015-12-09/stanford-ner.jar', encoding='utf-8')
+
+# To get n-grams based on tuple list
+from operator import itemgetter
+def collect(l, index):
+	return map(itemgetter(index), l)
+
+# Init geojson
+import geojson
+from geojson import Point, Feature, GeometryCollection, FeatureCollection
 
 # Initializing database for cache
 print
@@ -111,47 +124,68 @@ class UnicodeWriter:
             self.writerow(row)
 
 records = []
+geopoints = []
 cache = Cache('test.db')
 
 # Open file
-g = open(filename, "r")
-text = g.read()
-g.close()
 
-# Find tags
-output  = re.compile('<LOCATION>(.*?)</LOCATION>', re.DOTALL |  re.IGNORECASE).findall(text)
-for index, item in enumerate(output):
-#	print item,
-	name = item
-	address = item.decode('utf8')
+# Process text
+raw_text = open(filename, "r").read()
+token_text = word_tokenize(raw_text)
+classified_text = st.tag(token_text)
 
-# Routine for geolocator
-	location = cache.address_cached(address)
-	if location:
-		print "Was cached:",
-	else:
-		print "Was not cached, looking up...",
+#print(classified_text)
+
+# Filter persons
+#print 'PERSONS:'
+#for x, y in classified_text:
+#	if y == 'PERSON':
+#        	print x
+
+# Filter places
+print 'PLACES:'
+for address, y in classified_text:
+	if y == 'LOCATION':
+		indeksi = collect(classified_text,0).index(address)
+                prev2 = indeksi-2
+                prev1 = indeksi-1
+                nxt1 = indeksi+1
+                nxt2 = indeksi+2
+                try:
+                        lauseyhteys = classified_text[prev2][0], classified_text[prev1][0], address, classified_text[nxt1][0], classified_text[nxt2][0]
+			lause = ' '.join(lauseyhteys)
+                except:
+                        lauseyhteys = ""
+		location = cache.address_cached(address)
+		if location:
+			print "Was cached:",
+		else:
+			print "Was not cached, looking up...",
+			try:
+				location = geolocator.geocode(address, timeout=10)
+				cache.save_to_cache(address, location)
+			except:
+				print "Geocoding failed."
+				continue
 		try:
-			location = geolocator.geocode(output[index], timeout=10)
-			cache.save_to_cache(address, location)
+			print address, location.latitude, location.longitude
+			lat = str(location.latitude)
+			longi = str(location.longitude)
+			latlong = lat + ',' + longi
+			konteksti = address + " | context: " + lause
+			coord = Feature(geometry=Point((location.longitude, location.latitude)), properties={"name": address, "popupContent": konteksti})
+#			coord = Point((location.longitude, location.latitude))
+			records.append({
+					'name': address,
+					'latlong': latlong
+				})
+			geopoints.append(coord)
 		except:
-			print "Geocoding failed."
+			print " "
+			# TODO: Save these results in separate list to debug OCR-errors and historical places.
 			continue
-	try:
-		print address, location.latitude, location.longitude
-		lat = str(location.latitude)
-		longi = str(location.longitude)
-		latlong = lat + ',' + longi
-		records.append({
-				'name': item,
-				'latlong': latlong
-			})
-	except:
-		print " "
-		# TODO: Save these results in separate list to debug OCR-errors and historical places.
-		continue
 
-	sleep(1)
+#		sleep(1)
 
 # Write the tags to CSV table
 with open('output.csv', 'w') as csvfile:
@@ -159,3 +193,10 @@ with open('output.csv', 'w') as csvfile:
 	writer.writerow(["City;Latlong"])
 	for record in records:
 		writer.writerow([record['name'], record['latlong']])
+
+# Write the tags to GEOJSON
+#sonni = GeometryCollection(geopoints)
+sonni = FeatureCollection(geopoints)
+out_file = open("test.json","w")
+geojson.dump(sonni,out_file, indent=4)
+out_file.close()
