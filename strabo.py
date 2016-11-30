@@ -20,10 +20,7 @@ from nltk.tokenize import word_tokenize
 
 st = StanfordNERTagger('/home/asko/stanford-ner-2015-12-09/classifiers/english.all.3class.distsim.crf.ser.gz', '/home/asko/stanford-ner-2015-12-09/stanford-ner.jar', encoding='utf-8')
 
-# To get n-grams based on tuple list
-from operator import itemgetter
-def collect(l, index):
-	return map(itemgetter(index), l)
+count = -1
 
 # Init geojson
 import geojson
@@ -134,9 +131,7 @@ raw_text = open(filename, "r").read()
 token_text = word_tokenize(raw_text)
 classified_text = st.tag(token_text)
 
-#print(classified_text)
-
-# Filter persons
+# Filter persons - not supported yet
 #print 'PERSONS:'
 #for x, y in classified_text:
 #	if y == 'PERSON':
@@ -145,12 +140,12 @@ classified_text = st.tag(token_text)
 # Filter places
 print 'PLACES:'
 for address, y in classified_text:
+	count = count + 1
 	if y == 'LOCATION':
-		indeksi = collect(classified_text,0).index(address)
-                prev2 = indeksi-2
-                prev1 = indeksi-1
-                nxt1 = indeksi+1
-                nxt2 = indeksi+2
+                prev2 = count-2
+                prev1 = count-1
+                nxt1 = count+1
+                nxt2 = count+2
                 try:
                         lauseyhteys = classified_text[prev2][0], classified_text[prev1][0], address, classified_text[nxt1][0], classified_text[nxt2][0]
 			lause = ' '.join(lauseyhteys)
@@ -174,7 +169,6 @@ for address, y in classified_text:
 			latlong = lat + ',' + longi
 			konteksti = address + " | context: " + lause
 			coord = Feature(geometry=Point((location.longitude, location.latitude)), properties={"name": address, "popupContent": konteksti})
-#			coord = Point((location.longitude, location.latitude))
 			records.append({
 					'name': address,
 					'latlong': latlong
@@ -195,7 +189,6 @@ with open('output.csv', 'w') as csvfile:
 		writer.writerow([record['name'], record['latlong']])
 
 # Write the tags to GEOJSON
-#sonni = GeometryCollection(geopoints)
 sonni = FeatureCollection(geopoints)
 out_file = open("test.json","w")
 geojson.dump(sonni,out_file, indent=4)
